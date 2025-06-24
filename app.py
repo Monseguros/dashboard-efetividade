@@ -1,36 +1,48 @@
 
+import os
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import psycopg2
+from dotenv import load_dotenv
 from datetime import datetime
+
+# Carrega variáveis do .env
+load_dotenv()
+
+# Validação das variáveis obrigatórias
+required_vars = ["DB_HOST", "DB_NAME", "DB_USER", "DB_PASS", "DB_PORT"]
+for var in required_vars:
+    if not os.getenv(var):
+        st.error(f"❌ Variável de ambiente {var} não encontrada. Verifique o arquivo .env.")
+        st.stop()
 
 st.set_page_config(page_title="Dashboard Efetividade", layout="wide")
 
-# Função para carregar dados
 @st.cache_data
 def carregar_dados():
-    conn = psycopg2.connect(
-        host="34.134.35.236",
-        database="Darwin",
-        user="powerbi",
-        password="3bJY9iAq",
-        port="5432"
-    )
-    query = "SELECT * FROM vw_efetividade"
-    df = pd.read_sql(query, conn)
-    conn.close()
-    return df
+    try:
+        conn = psycopg2.connect(
+            host=os.getenv("DB_HOST"),
+            database=os.getenv("DB_NAME"),
+            user=os.getenv("DB_USER"),
+            password=os.getenv("DB_PASS"),
+            port=os.getenv("DB_PORT")
+        )
+        query = "SELECT * FROM vw_efetividade"
+        df = pd.read_sql(query, conn)
+        conn.close()
+        return df
+    except Exception as e:
+        st.error(f"Erro ao conectar no banco de dados: {e}")
+        st.stop()
 
 df = carregar_dados()
 
-# Convertendo datas
 df["data_competencia"] = pd.to_datetime(df["data_competencia"], errors="coerce")
 
-# Filtros
 st.sidebar.header("Filtros")
 
-# Filtro de Data de Competência
 datas = df["data_competencia"].dropna().dt.to_period("M").drop_duplicates().sort_values()
 datas_formatadas = [data.to_timestamp() for data in datas]
 data_selecionada = st.sidebar.selectbox(
@@ -39,19 +51,15 @@ data_selecionada = st.sidebar.selectbox(
     format_func=lambda d: d.strftime('%B/%Y').capitalize()
 )
 
-# Filtro por parceiro
 parceiros = df["nome_parceiro"].dropna().unique()
 parceiro = st.sidebar.selectbox("Parceiro", ["Todos"] + sorted(parceiros.tolist()))
 
-# Filtro por status título
 status = df["status_titulo"].dropna().unique()
 status_selecionado = st.sidebar.multiselect("Status do Título", sorted(status.tolist()), default=status.tolist())
 
-# Filtro por banco
 bancos = df["banco"].dropna().unique()
 banco = st.sidebar.selectbox("Banco", ["Todos"] + sorted(bancos.tolist()))
 
-# Aplicando filtros
 df_filtrado = df[df["data_competencia"].dt.to_period("M") == data_selecionada.to_period("M")]
 if parceiro != "Todos":
     df_filtrado = df_filtrado[df_filtrado["nome_parceiro"] == parceiro]
@@ -62,7 +70,6 @@ if status_selecionado:
 
 st.title("📊 Dashboard de Efetividade")
 
-# KPIs
 total_valor = df_filtrado["valor"].sum()
 total_titulos = df_filtrado.shape[0]
 
@@ -94,11 +101,12 @@ with st.container():
 
     st.markdown("</div>", unsafe_allow_html=True)
 
+
 # Gráfico de Barras por Mês
 with st.container():
     st.markdown("""
     <div style="background-color: #f9f9f9; padding: 25px; border-radius: 12px;
-                box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.05); margin-bottom: 20px;">
+                box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.05); margin-top: 20px;">
     """, unsafe_allow_html=True)
 
     st.markdown("## 📈 Evolução Mensal por Status")
@@ -116,13 +124,19 @@ with st.container():
         labels={"mes": "Mês", "valor": "Valor"},
         template="plotly_white"
     )
-    fig_bar.update_layout(barmode='stack', xaxis_tickformat="%b/%Y")
+    fig_bar.update_layout(
+        barmode='stack',
+        xaxis_tickformat="%b/%Y",
+        margin=dict(t=10, b=10),
+        plot_bgcolor="#fff",
+        paper_bgcolor="#f9f9f9"
+    )
     st.plotly_chart(fig_bar, use_container_width=True)
 
     st.markdown("</div>", unsafe_allow_html=True)
 
+# Tabela detalhada
 
-# Tabela detalhada com valores totais por status e parceiro
 with st.container():
     st.markdown("""
     <div style="background-color: #f9f9f9; padding: 25px; border-radius: 12px;
@@ -137,7 +151,6 @@ with st.container():
         tabela["% do Total"] = (tabela["valor"] / valor_total_geral * 100).round(2)
         tabela["valor"] = tabela["valor"].apply(lambda x: f"R$ {x:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
         tabela["% do Total"] = tabela["% do Total"].apply(lambda x: f"{x}%")
-
         st.dataframe(tabela, use_container_width=True, hide_index=True)
     else:
         st.info("Nenhum dado disponível para os filtros selecionados.")

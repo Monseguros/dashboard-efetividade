@@ -2,15 +2,21 @@
 import pandas as pd
 from sqlalchemy import create_engine
 import pg8000
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
 
 # 🔧 Configurações de conexão
-usuario = "powerbi"
-senha = "3bJY9iAq"
-host = "34.134.35.236"
-banco = "Darwin"
+host= os.getenv("DB_HOST"),
+database=os.getenv("DB_NAME"),
+user=os.getenv("DB_USER"),
+password=os.getenv("DB_PASS"),
+port=os.getenv("DB_PORT")
 
 # 🌐 String de conexão
-engine = create_engine(f"postgresql+pg8000://{usuario}:{senha}@{host}:5432/{banco}")
+engine = create_engine(f"postgresql+pg8000://{user}:{password}@{host}:5432/{database}")
 
 # 📥 Consulta à view
 query = """
