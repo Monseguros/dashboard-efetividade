@@ -68,7 +68,7 @@ if banco != "Todos":
 if status_selecionado:
     df_filtrado = df_filtrado[df_filtrado["status_titulo"].isin(status_selecionado)]
 
-st.title("📊 Dashboard de Efetividade")
+st.title("📊 Dashboard de Contratos")
 
 total_valor = df_filtrado["valor"].sum()
 total_titulos = df_filtrado.shape[0]
